@@ -1,10 +1,10 @@
+import requests
 import hashlib
 import secrets
 import base64
 import time
 import json
 import logging
-import requests
 
 # Configure logging
 logging.basicConfig(
@@ -21,16 +21,25 @@ BASE_URL = "https://fapi.bitunix.com/openApi/v2"
 
 
 # ================= AUTHENTICATION =================
-def _nonce() -> str:
-    return base64.b64encode(secrets.token_bytes(32)).decode()
-
-def _sign(nonce: str, timestamp: str, query_string: str, body: str) -> str:
-    # Bitunix double-SHA256: SHA256(SHA256(nonce+ts+key+qs+body) + secret)
-    msg    = f"{nonce}{timestamp}{API_KEY}{query_string}{body}"
-    digest = hashlib.sha256(msg.encode()).hexdigest()
+def generate_signature(nonce, timestamp, query_string="", body=""):
+    """
+    Bitunix double-SHA256 signature.
+      digest = SHA256(nonce + timestamp + api_key + query_string + body)
+      sign   = SHA256(digest + secret_key)
+    For POST requests: query_string="" and body=JSON string.
+    For GET  requests: query_string=URL-encoded params and body="".
+    """
+    digest = hashlib.sha256(
+        (nonce + timestamp + API_KEY + query_string + body).encode()
+    ).hexdigest()
     return hashlib.sha256((digest + SECRET_KEY).encode()).hexdigest()
 
-def _build_headers(nonce: str, timestamp: str, sign: str) -> dict:
+
+def _nonce():
+    return base64.b64encode(secrets.token_bytes(32)).decode()
+
+
+def _base_headers(nonce, timestamp, sign):
     return {
         "api-key":      API_KEY,
         "timestamp":    timestamp,
@@ -40,157 +49,171 @@ def _build_headers(nonce: str, timestamp: str, sign: str) -> dict:
     }
 
 
-# ================= HTTP HELPERS =================
-def _post(path: str, payload: dict) -> dict:
+# ================= HELPER FUNCTIONS =================
+def _post(path, payload):
+    """Signed POST request. Body is JSON; query_string is empty."""
     timestamp = str(int(time.time() * 1000))
     nonce     = _nonce()
     body      = json.dumps(payload, separators=(",", ":"))
-    sign      = _sign(nonce, timestamp, "", body)
+    sign      = generate_signature(nonce, timestamp, query_string="", body=body)
     try:
-        resp = requests.post(
+        response = requests.post(
             BASE_URL + path,
-            headers=_build_headers(nonce, timestamp, sign),
+            headers=_base_headers(nonce, timestamp, sign),
             data=body,
             timeout=10,
         )
-        resp.raise_for_status()
-        return resp.json()
+        result = response.json()
+        if result.get("code") not in (0, "0"):
+            logger.error(f"❌ POST {path} failed: {result.get('msg', result)}")
+        return result
     except requests.exceptions.Timeout:
         logger.error("❌ Request timed out")
         return {"error": "Timeout"}
     except requests.exceptions.RequestException as e:
         logger.error(f"❌ Request failed: {e}")
         return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"❌ Unexpected error: {e}")
+        return {"error": str(e)}
 
-def _get(path: str, params: dict) -> dict:
+
+def _get(path, params=None):
+    """Signed GET request. Params go in URL; query_string is used for signing."""
+    params    = params or {}
     timestamp = str(int(time.time() * 1000))
     nonce     = _nonce()
     qs        = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-    sign      = _sign(nonce, timestamp, qs, "")
+    sign      = generate_signature(nonce, timestamp, query_string=qs, body="")
     try:
-        resp = requests.get(
+        response = requests.get(
             BASE_URL + path,
-            headers=_build_headers(nonce, timestamp, sign),
+            headers=_base_headers(nonce, timestamp, sign),
             params=params,
             timeout=10,
         )
-        resp.raise_for_status()
-        return resp.json()
+        result = response.json()
+        if result.get("code") not in (0, "0"):
+            logger.error(f"❌ GET {path} failed: {result.get('msg', result)}")
+        else:
+            logger.info(f"✅ GET {path} successful")
+        return result
     except requests.exceptions.Timeout:
         logger.error("❌ Request timed out")
         return {"error": "Timeout"}
     except requests.exceptions.RequestException as e:
         logger.error(f"❌ Request failed: {e}")
         return {"error": str(e)}
+    except Exception as e:
+        logger.error(f"❌ Unexpected error: {e}")
+        return {"error": str(e)}
 
 
-# ================= INTERNAL ORDER FUNCTION =================
-def _order(symbol: str, qty, side: str, trade_side: str,
-           order_type: str = "MARKET", price=None) -> dict:
+def _place_order(symbol, qty, side, trade_side, order_type="MARKET", price=None):
     payload = {
         "symbol":    symbol,
-        "qty":       str(qty),
         "side":      side,
-        "tradeSide": trade_side,
         "orderType": order_type,
+        "qty":       str(qty),
+        "tradeSide": trade_side,
     }
     if order_type == "LIMIT" and price is not None:
         payload["price"]       = str(price)
         payload["timeInForce"] = "GTC"
 
     result = _post("/trade/order", payload)
-
-    if result.get("code") not in (0, "0", None):
-        logger.error(f"❌ Order failed: {result.get('msg', result)}")
-    else:
+    if result.get("code") in (0, "0"):
         logger.info(f"✅ {side} {trade_side} {symbol} qty={qty} {order_type}")
     return result
 
 
 # ================= TRADING FUNCTIONS =================
-def long(symbol: str, qty, order_type: str = "MARKET", price=None) -> dict:
+def long(symbol, qty, order_type="MARKET", price=None):
     """Open a LONG position (BUY to open)."""
     logger.info(f"🟢 Opening LONG  {symbol}  qty={qty}")
-    return _order(symbol, qty, "BUY", "OPEN", order_type, price)
+    return _place_order(symbol, qty, "BUY", "OPEN", order_type, price)
 
-def short(symbol: str, qty, order_type: str = "MARKET", price=None) -> dict:
+
+def short(symbol, qty, order_type="MARKET", price=None):
     """Open a SHORT position (SELL to open)."""
     logger.info(f"🔴 Opening SHORT {symbol}  qty={qty}")
-    return _order(symbol, qty, "SELL", "OPEN", order_type, price)
+    return _place_order(symbol, qty, "SELL", "OPEN", order_type, price)
 
-def close_long(symbol: str, qty) -> dict:
+
+def close_long(symbol, qty):
     """Close a LONG position (SELL to close)."""
     logger.info(f"🔚 Closing LONG  {symbol}  qty={qty}")
-    return _order(symbol, qty, "SELL", "CLOSE", "MARKET")
+    return _place_order(symbol, qty, "SELL", "CLOSE", "MARKET")
 
-def close_short(symbol: str, qty) -> dict:
+
+def close_short(symbol, qty):
     """Close a SHORT position (BUY to close)."""
     logger.info(f"🔚 Closing SHORT {symbol}  qty={qty}")
-    return _order(symbol, qty, "BUY", "CLOSE", "MARKET")
+    return _place_order(symbol, qty, "BUY", "CLOSE", "MARKET")
 
-def close(symbol: str, qty) -> dict:
-    """Alias: close a short (BUY to close). Use close_long() to close a long."""
+
+def close(symbol, qty):
+    """Alias for close_short() — BUY to close a short."""
     return close_short(symbol, qty)
 
-def close_all(symbol: str) -> dict:
+
+def close_all(symbol):
     """Flash-close every open position for a symbol."""
     logger.info(f"⚡ Closing ALL positions on {symbol}")
     result = _post("/trade/closeAll", {"symbol": symbol})
-    if result.get("code") not in (0, "0", None):
-        logger.error(f"❌ Close all failed: {result.get('msg', result)}")
-    else:
+    if result.get("code") in (0, "0"):
         logger.info(f"✅ All positions closed on {symbol}")
     return result
 
 
 # ================= ACCOUNT INFO =================
-def get_balance() -> dict:
+def get_balance():
     """Get account balance."""
-    logger.info("💰 Fetching balance...")
-    result = _get("/account/balance", {})
-    if result.get("code") not in (0, "0", None):
-        logger.error(f"❌ Balance check failed: {result.get('msg', result)}")
-    else:
-        logger.info("✅ Balance retrieved")
-    return result
+    logger.info("💰 Checking balance...")
+    return _get("/account/balance")
 
-def get_positions() -> dict:
-    """Get all open positions."""
-    logger.info("📊 Fetching positions...")
-    result = _get("/account/positions", {})
-    if result.get("code") not in (0, "0", None):
-        logger.error(f"❌ Positions check failed: {result.get('msg', result)}")
-    else:
+
+def get_positions():
+    """Get open positions."""
+    logger.info("📊 Checking positions...")
+    result = _get("/account/positions")
+    if result.get("code") in (0, "0"):
         count = len(result.get("data", []))
-        logger.info(f"✅ Found {count} open position(s)")
+        logger.info(f"   {count} open position(s)")
     return result
 
 
 # ================= USAGE EXAMPLE =================
 if __name__ == "__main__":
     print("=" * 50)
-    print("BITUNIX TRADING BOT")
+    print("BITUNIX TRADING BOT - TEST MODE")
     print("=" * 50)
 
+    # Check balance first
     print("\n1. Checking balance...")
     balance = get_balance()
     print(f"   {balance}")
 
-    print("\n2. Checking open positions...")
+    # Check positions
+    print("\n2. Checking positions...")
     positions = get_positions()
     print(f"   {positions}")
 
-    # Uncomment to place real orders:
-    # print("\n3. Open LONG BTCUSDT qty=0.001")
+    # === LIVE ORDERS — uncomment when ready (start small!) ===
+    # print("\n3. Testing LONG on BTCUSDT (qty=0.001)...")
     # print(long("BTCUSDT", "0.001"))
 
-    # print("\n4. Open SHORT ETHUSDT qty=0.01")
+    # print("\n4. Testing SHORT on ETHUSDT (qty=0.01)...")
     # print(short("ETHUSDT", "0.01"))
 
-    # time.sleep(5)
+    # time.sleep(30)
 
-    # print("\n5. Close LONG BTCUSDT")
+    # print("\n5. Closing LONG on BTCUSDT...")
     # print(close_long("BTCUSDT", "0.001"))
 
-    # print("\n6. Close SHORT ETHUSDT")
+    # print("\n6. Closing SHORT on ETHUSDT...")
     # print(close_short("ETHUSDT", "0.01"))
+
+    print("\n" + "=" * 50)
+    print("DONE! Uncomment live orders to trade.")
+    print("=" * 50)
