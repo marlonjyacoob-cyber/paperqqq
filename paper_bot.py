@@ -11,23 +11,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ================= CONFIGURATION =================
-PAPER_MODE           = True   # Set to False for live trading
-INITIAL_BALANCE      = 10000  # Starting balance in USDT
-MAX_POSITION_SIZE    = 1000   # Max $ per trade
-MAX_POSITIONS        = 3      # Max open positions at once
-LOOP_INTERVAL        = 60     # Seconds between scans
+PAPER_MODE        = True   # Set to False for live trading
+INITIAL_BALANCE   = 10000  # Starting balance in USDT
+MAX_POSITION_SIZE = 50     # Max $ per trade
+MAX_POSITIONS     = 3      # Max open positions at once
+LOOP_INTERVAL     = 60     # Seconds between auto-scans
 
-RSI_OVERSOLD         = 30
-RSI_OVERBOUGHT       = 70
-RSI_PERIOD           = 14
+RSI_OVERSOLD      = 30
+RSI_OVERBOUGHT    = 70
+RSI_PERIOD        = 14
 
 BASE_URL = "https://fapi.bitunix.com/openApi/v2"
 
-
 # ================= PAPER TRADING STATE =================
-paper_balance    = INITIAL_BALANCE
-paper_positions  = {}   # { symbol: {"side": "LONG"|"SHORT", "qty": float, "entry": float} }
-paper_orders     = []   # history
+paper_balance    = float(INITIAL_BALANCE)
+paper_positions  = {}   # { symbol: {side, qty, entry_price} }
+paper_orders     = []
 simulated_prices = {}
 
 
@@ -47,7 +46,7 @@ def get_futures_coins():
                      if i.get("status") == "TRADING" and i.get("symbol")]
             logger.info(f"✅ Found {len(coins)} futures coins")
             return coins
-        logger.error(f"❌ Instruments: {result.get('msg')}")
+        logger.error(f"❌ Instruments error: {result.get('msg')}")
         return []
     except Exception as e:
         logger.error(f"❌ get_futures_coins: {e}")
@@ -55,16 +54,15 @@ def get_futures_coins():
 
 
 def get_current_price(symbol):
+    _DEFAULTS = {
+        "BTCUSDT": 65000, "ETHUSDT": 3500, "SOLUSDT": 150,
+        "XRPUSDT": 0.55,  "ADAUSDT": 0.45, "DOGEUSDT": 0.13,
+        "AVAXUSDT": 35,   "TRXUSDT": 0.12, "DOTUSDT": 7.5,
+        "MATICUSDT": 0.9, "LINKUSDT": 15,  "UNIUSDT": 8,
+    }
     if PAPER_MODE:
         if symbol not in simulated_prices:
-            defaults = {
-                "BTCUSDT": 65000, "ETHUSDT": 3500, "SOLUSDT": 150,
-                "XRPUSDT": 0.55,  "ADAUSDT": 0.45, "DOGEUSDT": 0.13,
-                "AVAXUSDT": 35,   "TRXUSDT": 0.12, "DOTUSDT": 7.5,
-                "MATICUSDT": 0.9, "LINKUSDT": 15,  "UNIUSDT": 8,
-            }
-            simulated_prices[symbol] = defaults.get(symbol, random.uniform(1, 100))
-        # Simulate small random walk each call
+            simulated_prices[symbol] = _DEFAULTS.get(symbol, random.uniform(1, 100))
         simulated_prices[symbol] *= random.uniform(0.998, 1.002)
         return simulated_prices[symbol]
     try:
@@ -76,16 +74,17 @@ def get_current_price(symbol):
             return price
     except Exception as e:
         logger.error(f"❌ get_current_price({symbol}): {e}")
-    return simulated_prices.get(symbol, 100.0)
+    return simulated_prices.get(symbol, _DEFAULTS.get(symbol, 100.0))
 
 
-def get_historical_closes(symbol, interval="1m", limit=100):
+def get_historical_data(symbol, interval="1m", limit=100):
     if PAPER_MODE:
         base = get_current_price(symbol)
         closes = []
         for _ in range(limit):
             base *= random.uniform(0.995, 1.005)
-            closes.append(base)
+            closes.append({"close": base, "high": base * 1.01,
+                            "low": base * 0.99, "volume": random.uniform(100, 10000)})
         return closes
     try:
         r = requests.get(
@@ -95,199 +94,315 @@ def get_historical_closes(symbol, interval="1m", limit=100):
         )
         result = r.json()
         if result.get("code") == "0":
-            return [float(c["close"]) for c in result.get("data", [])]
+            return result.get("data", [])
     except Exception as e:
-        logger.error(f"❌ get_historical_closes({symbol}): {e}")
+        logger.error(f"❌ get_historical_data({symbol}): {e}")
     return []
 
 
 # ================= TECHNICAL ANALYSIS =================
 def calculate_rsi(closes, period=RSI_PERIOD):
-    """Wilder RSI from a list of close prices."""
     if len(closes) < period + 1:
-        return None
-    gains, losses = [], []
-    for i in range(1, period + 1):
-        diff = closes[i] - closes[i - 1]
-        gains.append(max(diff, 0))
-        losses.append(max(-diff, 0))
-    avg_gain = sum(gains) / period
-    avg_loss = sum(losses) / period
-    for i in range(period + 1, len(closes)):
-        diff = closes[i] - closes[i - 1]
-        avg_gain = (avg_gain * (period - 1) + max(diff, 0))  / period
-        avg_loss = (avg_loss * (period - 1) + max(-diff, 0)) / period
+        return 50.0  # neutral default
+    changes  = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains    = [c if c > 0 else 0.0 for c in changes]
+    losses   = [abs(c) if c < 0 else 0.0 for c in changes]
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
     if avg_loss == 0:
         return 100.0
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 2)
 
 
-def calculate_sma(closes, period):
-    if len(closes) < period:
-        return None
-    return sum(closes[-period:]) / period
+def calculate_macd(closes, fast=12, slow=26, signal_period=9):
+    if len(closes) < slow + signal_period:
+        return 0.0, 0.0, 0.0
+
+    def ema(prices, span):
+        k, val = 2 / (span + 1), prices[0]
+        for p in prices[1:]:
+            val = p * k + val * (1 - k)
+        return val
+
+    macd_line   = ema(closes, fast) - ema(closes, slow)
+    # Build MACD series for signal EMA (simplified: use last slow+signal candles)
+    macd_series = []
+    for i in range(slow, len(closes)):
+        macd_series.append(ema(closes[:i + 1], fast) - ema(closes[:i + 1], slow))
+    signal_line = ema(macd_series, signal_period) if len(macd_series) >= signal_period else macd_line
+    histogram   = macd_line - signal_line
+    return macd_line, signal_line, histogram
 
 
-# ================= PAPER TRADING EXECUTION =================
-def paper_open_long(symbol, usdt_size):
+def analyze_symbol(symbol):
+    try:
+        data = get_historical_data(symbol, interval="1m", limit=100)
+        if not data:
+            return {"symbol": symbol, "signal": "HOLD", "reason": "No data"}
+
+        closes = [float(d.get("close", 100)) for d in data]
+        rsi    = calculate_rsi(closes, RSI_PERIOD)
+        macd_line, sig_line, histogram = calculate_macd(closes)
+        price  = get_current_price(symbol)
+
+        trade_signal = "HOLD"
+        reason       = ""
+
+        if rsi < RSI_OVERSOLD:
+            trade_signal = "LONG"
+            reason       = f"RSI oversold ({rsi:.1f})"
+            if histogram > 0:
+                reason += " + MACD bullish"
+        elif rsi > RSI_OVERBOUGHT:
+            trade_signal = "SHORT"
+            reason       = f"RSI overbought ({rsi:.1f})"
+            if histogram < 0:
+                reason += " + MACD bearish"
+
+        return {
+            "symbol": symbol, "price": price,
+            "rsi": rsi, "macd": macd_line,
+            "histogram": histogram,
+            "signal": trade_signal, "reason": reason,
+        }
+    except Exception as e:
+        logger.error(f"❌ analyze_symbol({symbol}): {e}")
+        return {"symbol": symbol, "signal": "HOLD", "reason": str(e)}
+
+
+# ================= PAPER TRADING ENGINE =================
+def _paper_order(symbol, qty, side, trade_side):
     global paper_balance
-    if symbol in paper_positions:
-        logger.info(f"⏭  Already in position: {symbol}")
-        return
-    if len(paper_positions) >= MAX_POSITIONS:
-        logger.info(f"⏭  Max positions ({MAX_POSITIONS}) reached")
-        return
-    size  = min(usdt_size, MAX_POSITION_SIZE, paper_balance * 0.95)
     price = get_current_price(symbol)
-    qty   = size / price
-    paper_balance -= size
-    paper_positions[symbol] = {"side": "LONG", "qty": qty, "entry": price, "size": size}
-    paper_orders.append({"action": "OPEN LONG", "symbol": symbol, "qty": qty,
-                          "price": price, "time": time.strftime("%H:%M:%S")})
-    logger.info(f"🟢 [PAPER] LONG  {symbol}  qty={qty:.6f}  entry=${price:.4f}  cost=${size:.2f}")
+    pnl   = 0.0
+
+    if trade_side == "OPEN":
+        cost = qty  # qty is in USDT for simplicity
+        if paper_balance < cost:
+            logger.warning(f"⚠️  Insufficient balance (${paper_balance:.2f}) for ${cost:.2f} trade")
+            return {"code": "ERR", "error": "Insufficient balance"}
+
+        if symbol in paper_positions:
+            pos = paper_positions[symbol]
+            if pos["side"] == side:
+                # Add to existing position
+                total_cost  = pos["qty"] * pos["entry_price"] + cost
+                pos["qty"]  += cost / price
+                pos["entry_price"] = total_cost / pos["qty"]
+                paper_balance -= cost
+                logger.info(f"📈 Added to {side} {symbol}  new avg=${pos['entry_price']:.4f}")
+            else:
+                # Reverse position
+                paper_close_internal(symbol)
+                paper_balance -= cost
+                paper_positions[symbol] = {"side": side, "qty": cost / price, "entry_price": price}
+                logger.info(f"🔄 Reversed {symbol} to {side}  qty={cost/price:.6f}")
+        else:
+            paper_balance -= cost
+            paper_positions[symbol] = {"side": side, "qty": cost / price, "entry_price": price}
+            logger.info(f"🟢 OPEN {side} {symbol}  qty={cost/price:.6f}  entry=${price:.4f}  cost=${cost:.2f}")
+
+    elif trade_side == "CLOSE":
+        if symbol not in paper_positions:
+            logger.warning(f"⚠️  No position to close for {symbol}")
+            return {"code": "ERR", "error": "No position"}
+        pnl = paper_close_internal(symbol, close_qty=qty / price if qty else None)
+
+    order = {
+        "id": len(paper_orders) + 1,
+        "symbol": symbol, "side": side, "tradeSide": trade_side,
+        "qty": qty, "price": price, "pnl": pnl,
+        "timestamp": time.strftime("%H:%M:%S"), "status": "FILLED",
+    }
+    paper_orders.append(order)
+    return {"code": "0", "data": order, "simulated": True, "pnl": pnl}
 
 
-def paper_open_short(symbol, usdt_size):
-    global paper_balance
-    if symbol in paper_positions:
-        logger.info(f"⏭  Already in position: {symbol}")
-        return
-    if len(paper_positions) >= MAX_POSITIONS:
-        logger.info(f"⏭  Max positions ({MAX_POSITIONS}) reached")
-        return
-    size  = min(usdt_size, MAX_POSITION_SIZE, paper_balance * 0.95)
-    price = get_current_price(symbol)
-    qty   = size / price
-    paper_balance -= size
-    paper_positions[symbol] = {"side": "SHORT", "qty": qty, "entry": price, "size": size}
-    paper_orders.append({"action": "OPEN SHORT", "symbol": symbol, "qty": qty,
-                          "price": price, "time": time.strftime("%H:%M:%S")})
-    logger.info(f"🔴 [PAPER] SHORT {symbol}  qty={qty:.6f}  entry=${price:.4f}  cost=${size:.2f}")
-
-
-def paper_close(symbol):
+def paper_close_internal(symbol, close_qty=None):
+    """Close (part of) a position and credit balance. Returns realized PnL."""
     global paper_balance
     if symbol not in paper_positions:
-        return
-    pos   = paper_positions.pop(symbol)
+        return 0.0
+    pos   = paper_positions[symbol]
     price = get_current_price(symbol)
-    qty   = pos["qty"]
-    side  = pos["side"]
-    entry = pos["entry"]
-    if side == "LONG":
-        pnl = (price - entry) * qty
+    qty   = close_qty if close_qty and close_qty < pos["qty"] else pos["qty"]
+
+    if pos["side"] == "BUY":
+        pnl = (price - pos["entry_price"]) * qty
     else:
-        pnl = (entry - price) * qty
-    returned = pos["size"] + pnl
+        pnl = (pos["entry_price"] - price) * qty
+
+    returned = qty * pos["entry_price"] + pnl   # original cost + profit
     paper_balance += returned
-    paper_orders.append({"action": f"CLOSE {side}", "symbol": symbol, "qty": qty,
-                          "price": price, "pnl": pnl, "time": time.strftime("%H:%M:%S")})
     emoji = "✅" if pnl >= 0 else "🔻"
-    logger.info(f"{emoji} [PAPER] CLOSE {side} {symbol}  exit=${price:.4f}  PnL=${pnl:+.2f}")
+    logger.info(f"{emoji} CLOSE {pos['side']} {symbol}  qty={qty:.6f}  exit=${price:.4f}  PnL=${pnl:+.2f}")
+
+    pos["qty"] -= qty
+    if pos["qty"] <= 1e-9:
+        del paper_positions[symbol]
+    return pnl
 
 
-# ================= STRATEGY =================
-def run_strategy(symbol):
-    """RSI mean-reversion strategy with SMA trend filter."""
-    closes = get_historical_closes(symbol, limit=RSI_PERIOD + 20)
-    if not closes:
-        return
-
-    rsi  = calculate_rsi(closes)
-    sma  = calculate_sma(closes, 20)
-    price = closes[-1]
-
-    if rsi is None or sma is None:
-        return
-
-    in_position = symbol in paper_positions
-
-    # ── Exit logic ──────────────────────────────────────────────────────────
-    if in_position:
-        pos  = paper_positions[symbol]
-        side = pos["side"]
-        entry = pos["entry"]
-        pnl_pct = ((price - entry) / entry) * (1 if side == "LONG" else -1) * 100
-
-        # Stop-loss at -2%, take-profit at +3%
-        if pnl_pct <= -2.0:
-            logger.info(f"🛑 Stop-loss hit for {symbol}  PnL={pnl_pct:.2f}%")
-            paper_close(symbol)
-            return
-        if pnl_pct >= 3.0:
-            logger.info(f"🎯 Take-profit hit for {symbol}  PnL={pnl_pct:.2f}%")
-            paper_close(symbol)
-            return
-        # RSI reversal exit
-        if side == "LONG"  and rsi >= RSI_OVERBOUGHT:
-            logger.info(f"📤 RSI exit LONG  {symbol}  RSI={rsi}")
-            paper_close(symbol)
-        if side == "SHORT" and rsi <= RSI_OVERSOLD:
-            logger.info(f"📤 RSI exit SHORT {symbol}  RSI={rsi}")
-            paper_close(symbol)
-        return
-
-    # ── Entry logic ─────────────────────────────────────────────────────────
-    if rsi <= RSI_OVERSOLD and price > sma:
-        logger.info(f"📈 BUY signal  {symbol}  RSI={rsi}  price={price:.4f} > SMA={sma:.4f}")
-        paper_open_long(symbol, MAX_POSITION_SIZE)
-    elif rsi >= RSI_OVERBOUGHT and price < sma:
-        logger.info(f"📉 SELL signal {symbol}  RSI={rsi}  price={price:.4f} < SMA={sma:.4f}")
-        paper_open_short(symbol, MAX_POSITION_SIZE)
+# ================= PUBLIC TRADING FUNCTIONS =================
+def long(symbol, qty):
+    if PAPER_MODE:
+        logger.info(f"🟢 [PAPER] LONG {symbol} ${qty}")
+        return _paper_order(symbol, qty, "BUY", "OPEN")
+    # Live mode — delegates to bitunix_bot
+    from bitunix_bot import long as _live_long
+    return _live_long(symbol, str(qty))
 
 
-# ================= STATUS REPORT =================
-def print_status(coins):
-    total_unrealized = 0.0
+def short(symbol, qty):
+    if PAPER_MODE:
+        logger.info(f"🔴 [PAPER] SHORT {symbol} ${qty}")
+        return _paper_order(symbol, qty, "SELL", "OPEN")
+    from bitunix_bot import short as _live_short
+    return _live_short(symbol, str(qty))
+
+
+def close_long(symbol, qty=None):
+    if PAPER_MODE:
+        logger.info(f"🔚 [PAPER] Close LONG {symbol}")
+        return _paper_order(symbol, qty or 0, "SELL", "CLOSE")
+    from bitunix_bot import close_long as _live_cl
+    return _live_cl(symbol, str(qty or 0))
+
+
+def close_short(symbol, qty=None):
+    if PAPER_MODE:
+        logger.info(f"🔚 [PAPER] Close SHORT {symbol}")
+        return _paper_order(symbol, qty or 0, "BUY", "CLOSE")
+    from bitunix_bot import close_short as _live_cs
+    return _live_cs(symbol, str(qty or 0))
+
+
+def close_position(symbol, qty=None):
+    if symbol in paper_positions:
+        side = paper_positions[symbol]["side"]
+        return close_long(symbol, qty) if side == "BUY" else close_short(symbol, qty)
+    logger.warning(f"⚠️  No open position for {symbol}")
+    return {"code": "ERR", "error": "No position"}
+
+
+# ================= ACCOUNT INFO =================
+def get_balance():
+    if PAPER_MODE:
+        upnl = 0.0
+        for sym, pos in paper_positions.items():
+            price = get_current_price(sym)
+            if pos["side"] == "BUY":
+                upnl += (price - pos["entry_price"]) * pos["qty"]
+            else:
+                upnl += (pos["entry_price"] - price) * pos["qty"]
+        return {
+            "code": "0",
+            "data": {"balance": paper_balance, "unrealized_pnl": upnl,
+                     "total": paper_balance + upnl},
+            "simulated": True,
+        }
+    from bitunix_bot import get_balance as _live_bal
+    return _live_bal()
+
+
+def get_positions():
+    if PAPER_MODE:
+        return {
+            "code": "0",
+            "data": [{"symbol": s, "side": pos["side"],
+                       "qty": pos["qty"], "entryPrice": pos["entry_price"]}
+                     for s, pos in paper_positions.items()],
+            "simulated": True,
+        }
+    from bitunix_bot import get_positions as _live_pos
+    return _live_pos()
+
+
+# ================= AUTO STRATEGY =================
+def run_auto_strategy():
+    print("=" * 60)
+    print("AUTO TRADING STRATEGY — SCANNING FUTURES COINS")
+    print("=" * 60)
+
+    coins   = get_futures_coins()
+    signals = []
+
+    print(f"\n📊 Scanning {len(coins)} coins...")
+    for coin in coins:
+        analysis = analyze_symbol(coin)
+        signals.append(analysis)
+        if analysis["signal"] != "HOLD":
+            print(f"  {analysis['symbol']:12s} {analysis['signal']:5s}  RSI={analysis['rsi']:.1f}  {analysis['reason']}")
+
+    long_signals  = sorted([s for s in signals if s["signal"] == "LONG"],  key=lambda x: x["rsi"])
+    short_signals = sorted([s for s in signals if s["signal"] == "SHORT"], key=lambda x: x["rsi"], reverse=True)
+    print(f"\n💡 {len(long_signals)} LONG  |  {len(short_signals)} SHORT opportunities")
+
+    trades = 0
+    for sig in long_signals:
+        if trades >= MAX_POSITIONS or len(paper_positions) >= MAX_POSITIONS:
+            break
+        if sig["symbol"] not in paper_positions:
+            qty = min(MAX_POSITION_SIZE, paper_balance * 0.05)
+            print(f"\n🟢 LONG  {sig['symbol']}  ${qty:.2f}  —  {sig['reason']}")
+            long(sig["symbol"], qty)
+            trades += 1
+
+    for sig in short_signals:
+        if trades >= MAX_POSITIONS or len(paper_positions) >= MAX_POSITIONS:
+            break
+        if sig["symbol"] not in paper_positions:
+            qty = min(MAX_POSITION_SIZE, paper_balance * 0.05)
+            print(f"\n🔴 SHORT {sig['symbol']}  ${qty:.2f}  —  {sig['reason']}")
+            short(sig["symbol"], qty)
+            trades += 1
+
+    _print_status()
+
+
+def _print_status():
+    bal = get_balance()
+    d   = bal["data"]
+    pnl = d["total"] - INITIAL_BALANCE
+    print("\n" + "=" * 60)
+    print(f"  Balance    : ${d['balance']:>10.2f} USDT")
+    print(f"  Unrealized : ${d['unrealized_pnl']:>+10.2f} USDT")
+    print(f"  Equity     : ${d['total']:>10.2f} USDT")
+    print(f"  Total PnL  : ${pnl:>+10.2f} USDT  ({pnl/INITIAL_BALANCE*100:+.2f}%)")
+    print(f"  Positions  : {len(paper_positions)}/{MAX_POSITIONS}")
     for sym, pos in paper_positions.items():
         price = get_current_price(sym)
-        if pos["side"] == "LONG":
-            upnl = (price - pos["entry"]) * pos["qty"]
-        else:
-            upnl = (pos["entry"] - price) * pos["qty"]
-        total_unrealized += upnl
-
-    equity = paper_balance + sum(p["size"] for p in paper_positions.values()) + total_unrealized
-    pnl    = equity - INITIAL_BALANCE
-
-    print("\n" + "=" * 55)
-    print(f"  Balance   : ${paper_balance:>10.2f} USDT")
-    print(f"  Unrealized: ${total_unrealized:>+10.2f} USDT")
-    print(f"  Equity    : ${equity:>10.2f} USDT")
-    print(f"  Total PnL : ${pnl:>+10.2f} USDT  ({pnl/INITIAL_BALANCE*100:+.2f}%)")
-    print(f"  Positions : {len(paper_positions)}/{MAX_POSITIONS}")
-    for sym, pos in paper_positions.items():
-        price = get_current_price(sym)
-        upnl  = (price - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "LONG" else -1)
-        print(f"    {pos['side']:5s} {sym:12s}  entry=${pos['entry']:.4f}  now=${price:.4f}  uPnL=${upnl:+.2f}")
-    print(f"  Coins scanned: {len(coins)}")
-    print("=" * 55 + "\n")
+        upnl  = (price - pos["entry_price"]) * pos["qty"] * (1 if pos["side"] == "BUY" else -1)
+        print(f"    {pos['side']:4s} {sym:12s}  entry=${pos['entry_price']:.4f}  now=${price:.4f}  uPnL=${upnl:+.2f}")
+    print("=" * 60 + "\n")
 
 
-# ================= MAIN LOOP =================
+def simulate_market_movement():
+    for sym in list(simulated_prices):
+        simulated_prices[sym] *= random.uniform(0.99, 1.01)
+
+
+# ================= MAIN =================
 if __name__ == "__main__":
     mode = "PAPER" if PAPER_MODE else "LIVE"
-    print("=" * 55)
-    print(f"  BITUNIX RSI BOT — {mode} MODE")
+    print("=" * 60)
+    print(f"  BITUNIX AUTO TRADING BOT — {mode} MODE")
     print(f"  Balance: ${INITIAL_BALANCE:,.2f}  |  Max positions: {MAX_POSITIONS}")
-    print(f"  RSI period: {RSI_PERIOD}  oversold: {RSI_OVERSOLD}  overbought: {RSI_OVERBOUGHT}")
-    print("=" * 55)
+    print(f"  Max per trade: ${MAX_POSITION_SIZE}  |  RSI {RSI_OVERSOLD}/{RSI_OVERBOUGHT}")
+    print("=" * 60 + "\n")
 
-    coins = get_futures_coins()
-    logger.info(f"Scanning {len(coins)} coins every {LOOP_INTERVAL}s ...")
+    # Initial scan
+    run_auto_strategy()
 
-    iteration = 0
-    while True:
-        iteration += 1
-        logger.info(f"── Scan #{iteration} ──────────────────────────────────")
-        for symbol in coins:
-            try:
-                run_strategy(symbol)
-            except Exception as e:
-                logger.error(f"❌ Strategy error for {symbol}: {e}")
+    # Simulate 5 minutes of price movement then re-scan
+    print("⏳ Simulating 5 minutes of market movement...")
+    for _ in range(5):
+        simulate_market_movement()
+        time.sleep(1)
 
-        if iteration % 5 == 0:
-            print_status(coins)
+    print("\n🔄 Re-scanning markets after price movement...")
+    run_auto_strategy()
 
-        time.sleep(LOOP_INTERVAL)
+    print("Auto trading complete!")
+    print("Set LOOP_INTERVAL and wrap run_auto_strategy() in a while loop for continuous scanning.")
