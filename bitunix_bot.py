@@ -159,3 +159,35 @@ def get_balance():
 def get_positions():
     logger.info("📊 Checking positions...")
     return _get("account/positions")
+
+
+# ================= MAIN =================
+if __name__ == "__main__":
+    print("=" * 50)
+    print("BITUNIX TRADING BOT")
+    print("=" * 50)
+
+    print("\n1. Balance:")
+    print(get_balance())
+
+    print("\n2. Positions:")
+    print(get_positions())
+
+    # === LIVE TRADING (uncomment, start small!) ===
+    # print("\n3. LONG BTCUSDT qty=0.001:")
+    # print(long("BTCUSDT", "0.001"))
+
+    # print("\n4. SHORT ETHUSDT qty=0.01:")
+    # print(short("ETHUSDT", "0.01"))
+
+    # time.sleep(30)
+
+    # print("\n5. Close LONG BTCUSDT:")
+    # print(close_long("BTCUSDT", "0.001"))
+
+    # print("\n6. Close SHORT ETHUSDT:")
+    # print(close_short("ETHUSDT", "0.01"))
+
+    print("\n" + "=" * 50)
+    print("Done.")
+    print("=" * 50)
