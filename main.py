@@ -25,9 +25,9 @@ side=OrderSide.BUY,
 time_in_force=TimeInForce.DAY,
 )
 
-result = client.submit_order(order_data=order)
-print("Order submitted:")
-print(result)
+submitted = client.submit_order(order_data=order)
+print("Paper order submitted:")
+print(submitted)
 
 if __name__ == "__main__":
 main()
