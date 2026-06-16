@@ -3,8 +3,13 @@ from dotenv import load_dotenv
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     GetOptionContractsRequest,
+<<<<<<< HEAD
     MarketOrderRequest,
     OptionLegRequest,
+=======
+    OptionOrderRequest,
+    ClosePositionRequest,
+>>>>>>> 8958aa06c0a5e9a2baebbcf09c77d6b547959b51
 )
 from alpaca.trading.enums import (
     OrderSide,
@@ -12,7 +17,10 @@ from alpaca.trading.enums import (
     OrderType,
     ContractType,
     AssetStatus,
+<<<<<<< HEAD
     PositionIntent,
+=======
+>>>>>>> 8958aa06c0a5e9a2baebbcf09c77d6b547959b51
 )
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
@@ -26,6 +34,7 @@ API_KEY = os.getenv("ALPACA_API_KEY")
 SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 
 if not API_KEY or not SECRET_KEY:
+<<<<<<< HEAD
     raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in .env")
 
 trading_client = TradingClient(API_KEY, SECRET_KEY, paper=True)
@@ -221,3 +230,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+=======
+    raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in
+>>>>>>> 8958aa06c0a5e9a2baebbcf09c77d6b547959b51
