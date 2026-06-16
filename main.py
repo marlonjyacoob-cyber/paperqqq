@@ -1,33 +1,28 @@
 import os
 from dotenv import load_dotenv
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.requests import (
+    GetOptionContractsRequest,
+    OptionOrderRequest,
+    ClosePositionRequest,
+)
+from alpaca.trading.enums import (
+    OrderSide,
+    TimeInForce,
+    OrderType,
+    ContractType,
+    AssetStatus,
+)
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
+from datetime import date, timedelta, datetime, timezone
+import time
 
 load_dotenv()
 
-API_KEY = os.getenv("ALPACA_API_KEY")
-SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+API_KEY = os.getenv("PK4MDBGUZXZ7CA62KEP3ZLYIQ3")
+SECRET_KEY = os.getenv("ESphvpJABpMxkvib4qp9aqtS1BSPmDzoCURmAU4gRbiN")
 
 if not API_KEY or not SECRET_KEY:
-raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in .env")
-
-client = TradingClient(API_KEY, SECRET_KEY, paper=True)
-
-def main():
-account = client.get_account()
-print(f"Connected. Buying power: {account.buying_power}")
-
-order = MarketOrderRequest(
-symbol="AAPL",
-qty=1,
-side=OrderSide.BUY,
-time_in_force=TimeInForce.DAY,
-)
-
-submitted = client.submit_order(order_data=order)
-print("Paper order submitted:")
-print(submitted)
-
-if __name__ == "__main__":
-main()
+    raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in
