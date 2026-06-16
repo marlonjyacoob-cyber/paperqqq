@@ -21,8 +21,8 @@ import time
 
 load_dotenv()
 
-API_KEY = os.getenv("PK4MDBGUZXZ7CA62KEP3ZLYIQ3")
-SECRET_KEY = os.getenv("ESphvpJABpMxkvib4qp9aqtS1BSPmDzoCURmAU4gRbiN")
+API_KEY = os.getenv("ALPACA_API_KEY")
+SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 
 if not API_KEY or not SECRET_KEY:
     raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in
