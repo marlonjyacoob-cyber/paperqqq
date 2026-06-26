@@ -1,45 +1,43 @@
 # Faceless YouTube Video Generator
 
-AI-powered pipeline for faceless YouTube videos (news/facts format).
+Fully automated pipeline for faceless YouTube videos (news/facts format).  
+**No paid API keys required** — uses free TTS and free image generation.
 
 ## Pipeline
 
-| Step | Who does it | What happens |
-|------|-------------|-------------|
-| 1. Script | Python (Claude API) | Generates segmented narration + image prompts |
-| 2. Assets | Claude + Higgs | Generates voiceover MP3s and cinematic images per segment |
-| 3. Assembly | Python (FFmpeg) | Stitches audio + images into final MP4 with Ken Burns effect |
+| Step | Tool | What happens |
+|------|------|-------------|
+| Script | Claude API (`anthropic`) | Generates segmented narration + image prompts |
+| Voiceover | `edge-tts` (Microsoft Neural, free) | Converts each segment to MP3 |
+| Images | Pollinations.ai (free, no key) | Generates cinematic 1920×1080 images |
+| Assembly | FFmpeg | Stitches everything into a final MP4 with Ken Burns zoom |
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # add ANTHROPIC_API_KEY
+# FFmpeg must be installed:
+sudo apt install ffmpeg   # Linux
+brew install ffmpeg       # Mac
 ```
 
-FFmpeg must be installed: `sudo apt install ffmpeg`
+Only needed for script generation (optional if you write scripts manually):
+```bash
+cp .env.example .env  # add ANTHROPIC_API_KEY
+```
 
 ## Usage
 
-**Step 1 — generate script**
+**One command — full pipeline:**
 ```bash
-python main.py script --topic "10 mind-blowing facts about black holes" --duration 90
+python main.py run --topic "10 mind-blowing facts about black holes" --duration 90
 ```
-Writes `output/<slug>/script.json`
 
-**Step 2 — generate assets**  
-Tell Claude in your session:
-> "generate assets for output/10-mind-blowing-facts-about-black-holes/script.json"
-
-Claude calls Higgs (ElevenLabs TTS + Cinematic Studio images) and saves files to `output/<slug>/audio/` and `output/<slug>/images/`.
-
-**Step 3 — assemble**
+**Or step by step:**
 ```bash
-python main.py assemble --work-dir output/10-mind-blowing-facts-about-black-holes/
+python main.py script  --topic "..." --duration 90
+python main.py assets  --work-dir output/<slug>/
+python main.py assemble --work-dir output/<slug>/
 ```
-Outputs `output/<slug>/final.mp4`
 
-## Models used (via Higgs)
-
-- **Audio**: `text2speech_v2_seed_speech` — clean, stable long-form narration
-- **Images**: `cinematic_studio_2_5` — cinematic 16:9 stills up to 4K
+Output: `output/<slug>/final.mp4` — ready to upload to YouTube.
