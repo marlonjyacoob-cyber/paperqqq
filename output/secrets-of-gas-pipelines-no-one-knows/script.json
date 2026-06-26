@@ -1,0 +1,47 @@
+[
+  {
+    "text": "Beneath your feet, right now, stretches a secret world that most people never think about. Gas pipelines — thousands of miles of steel tunnels moving invisible fuel at terrifying pressures. And they're hiding secrets that would shock you.",
+    "image_prompt": "Dramatic aerial view of industrial gas pipeline stretching across a vast landscape at dusk, cinematic, moody lighting, fog rolling over the terrain",
+    "duration": 12
+  },
+  {
+    "text": "The United States alone has over 3 million miles of natural gas pipelines. That's enough to circle the Earth more than 120 times. Most people drive over them daily without ever knowing.",
+    "image_prompt": "Satellite-style wide shot of North America with glowing pipeline network overlaid like veins across the continent, night, dramatic blue glow",
+    "duration": 10
+  },
+  {
+    "text": "Here's the first secret: the gas inside moves at speeds of up to 30 miles per hour under pressures of 1,500 PSI — that's 100 times the pressure in your car tires. A rupture doesn't just leak — it explodes.",
+    "image_prompt": "Close-up of a massive high-pressure steel pipeline valve with pressure gauges, industrial setting, dramatic red and orange lighting, danger aesthetic",
+    "duration": 11
+  },
+  {
+    "text": "Secret number two: pipelines are monitored by something called a 'pig'. No, not the animal — it's a robotic device fired through the pipe at full gas speed, scanning for cracks and corrosion from the inside.",
+    "image_prompt": "Futuristic cylindrical pipeline inspection robot being launched into a large industrial pipe, close-up, metallic textures, blue diagnostic lights, cinematic",
+    "duration": 10
+  },
+  {
+    "text": "Most pipeline operators can't even see their full network on a single map. The systems were built over decades by different companies, many of which no longer exist, leaving behind stretches of pipe with unknown histories.",
+    "image_prompt": "Old yellowed engineering blueprints and maps of pipeline networks scattered on a table, dim light, mysterious atmosphere, some documents marked classified",
+    "duration": 11
+  },
+  {
+    "text": "Natural gas is actually odorless and colorless. That rotten egg smell? Completely artificial — a chemical called mercaptan added purely so you can detect a leak. Without it, you'd never know until it was too late.",
+    "image_prompt": "Extreme close-up of gas flame with abstract invisible gas molecules visualized around it, dark background, eerie blue and orange glow",
+    "duration": 10
+  },
+  {
+    "text": "In 2010, a pipeline explosion in San Bruno, California killed 8 people and destroyed 38 homes. The cause? A pipe installed in 1956 — before modern safety standards — that had never been properly inspected. It had failed silently for 54 years.",
+    "image_prompt": "Dramatic night scene of a neighborhood with an enormous gas explosion fireball rising into the sky, emergency lights flickering below, cinematic tragedy",
+    "duration": 12
+  },
+  {
+    "text": "Here's what keeps engineers up at night: over 45% of America's gas distribution pipes are made of cast iron or unprotected steel — materials considered obsolete and high-risk. Replacing them all would cost over a trillion dollars.",
+    "image_prompt": "Underground cross-section showing corroded old cast iron gas pipes beneath a modern city street, dramatic lighting showing rust and age, engineering diagram style",
+    "duration": 11
+  },
+  {
+    "text": "The next time you turn on your stove or heat your home, remember — the gas arriving in seconds has traveled through a hidden, aging, high-pressure network stretching across a continent. It's one of the greatest engineering feats in history. And one of the least understood.",
+    "image_prompt": "Person turning on a kitchen gas stove, warm flame igniting, cozy home in background, but the floor is transparent revealing a vast glowing pipeline network beneath the city",
+    "duration": 13
+  }
+]
