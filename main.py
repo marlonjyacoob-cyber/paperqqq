@@ -3,13 +3,8 @@ from dotenv import load_dotenv
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     GetOptionContractsRequest,
-<<<<<<< HEAD
     MarketOrderRequest,
     OptionLegRequest,
-=======
-    OptionOrderRequest,
-    ClosePositionRequest,
->>>>>>> 8958aa06c0a5e9a2baebbcf09c77d6b547959b51
 )
 from alpaca.trading.enums import (
     OrderSide,
@@ -17,10 +12,7 @@ from alpaca.trading.enums import (
     OrderType,
     ContractType,
     AssetStatus,
-<<<<<<< HEAD
     PositionIntent,
-=======
->>>>>>> 8958aa06c0a5e9a2baebbcf09c77d6b547959b51
 )
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
@@ -34,7 +26,6 @@ API_KEY = os.getenv("ALPACA_API_KEY")
 SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 
 if not API_KEY or not SECRET_KEY:
-<<<<<<< HEAD
     raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in .env")
 
 trading_client = TradingClient(API_KEY, SECRET_KEY, paper=True)
@@ -153,7 +144,7 @@ def place_option_order(contract_symbol: str):
         ],
     )
     submitted = trading_client.submit_order(order_req)
-    print(f"  ✅ Order submitted → ID: {submitted.id} | Status: {submitted.status}")
+    print(f"  Order submitted → ID: {submitted.id} | Status: {submitted.status}")
     return submitted
 
 
@@ -168,9 +159,9 @@ def close_all_positions():
     for p in options:
         try:
             trading_client.close_position(p.symbol)
-            print(f"  🔴 Closed: {p.symbol} | P&L: ${float(p.unrealized_pl):+.2f}")
+            print(f"  Closed: {p.symbol} | P&L: ${float(p.unrealized_pl):+.2f}")
         except Exception as e:
-            print(f"  ⚠️  Could not close {p.symbol}: {e}")
+            print(f"  Could not close {p.symbol}: {e}")
 
 
 def is_eod() -> bool:
@@ -197,9 +188,9 @@ def main():
         print(f"\n[{now.strftime('%H:%M:%S')}] Checking market...")
 
         if is_eod():
-            print("\n🔔 EOD reached — closing all positions.")
+            print("\nEOD reached — closing all positions.")
             close_all_positions()
-            print("✅ Done for today. Bot shutting down.")
+            print("Done for today. Bot shutting down.")
             break
 
         if not is_market_open():
@@ -230,6 +221,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-=======
-    raise ValueError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY in
->>>>>>> 8958aa06c0a5e9a2baebbcf09c77d6b547959b51
