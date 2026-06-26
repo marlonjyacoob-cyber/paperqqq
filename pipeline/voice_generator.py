@@ -10,10 +10,10 @@ import imageio_ffmpeg
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
-# en-us with a slightly slower speed and lower pitch = authoritative narrator feel
-ESPEAK_VOICE = "en-us"
-ESPEAK_SPEED = 145   # words per minute (default 175 is too fast)
-ESPEAK_PITCH = 32    # 0-99, lower = deeper voice
+# MBROLA us3 = diphone-based US English male voice, far more natural than plain espeak
+ESPEAK_VOICE = "mb-us3"
+ESPEAK_SPEED = 145   # words per minute
+ESPEAK_PITCH = 40    # slightly deeper
 
 
 def text_to_speech(text: str, output_path: str) -> str:
@@ -26,7 +26,6 @@ def text_to_speech(text: str, output_path: str) -> str:
             "-v", ESPEAK_VOICE,
             "-s", str(ESPEAK_SPEED),
             "-p", str(ESPEAK_PITCH),
-            "-g", "8",           # gap between words (ms)
             text,
             "-w", wav_path,
         ],
