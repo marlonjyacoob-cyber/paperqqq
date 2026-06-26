@@ -1,21 +1,25 @@
 import os
 import subprocess
 from pathlib import Path
+import imageio_ffmpeg
+
+FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
 
 def get_audio_duration(audio_path: str) -> float:
-    """Returns duration of an audio file in seconds using ffprobe."""
+    """Returns duration of an audio file in seconds using ffmpeg stderr output."""
     result = subprocess.run(
-        [
-            "ffprobe", "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            audio_path,
-        ],
+        [FFMPEG, "-i", audio_path],
         capture_output=True,
         text=True,
     )
-    return float(result.stdout.strip())
+    # ffmpeg prints "Duration: HH:MM:SS.xx" to stderr even on error
+    for line in result.stderr.splitlines():
+        if "Duration:" in line:
+            dur_str = line.split("Duration:")[1].split(",")[0].strip()
+            h, m, s = dur_str.split(":")
+            return int(h) * 3600 + int(m) * 60 + float(s)
+    return 5.0  # fallback
 
 
 def assemble_video(
@@ -45,7 +49,7 @@ def assemble_video(
 
         subprocess.run(
             [
-                "ffmpeg", "-y",
+                FFMPEG, "-y",
                 "-loop", "1", "-i", img,
                 "-i", aud,
                 "-vf", vf,
@@ -70,7 +74,7 @@ def assemble_video(
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
-            "ffmpeg", "-y",
+            FFMPEG, "-y",
             "-f", "concat", "-safe", "0",
             "-i", concat_list,
             "-c", "copy",
