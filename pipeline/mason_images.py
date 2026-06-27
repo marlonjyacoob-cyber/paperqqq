@@ -19,25 +19,7 @@ def font(size):
 
 
 def text_overlay(img, text, color=(255, 250, 235)):
-    import textwrap
-    draw = ImageDraw.Draw(img)
-    f = font(50)
-    lines = textwrap.wrap(text, width=52)
-    lh = 62
-    total = len(lines) * lh + 20
-    oy = H - total - 35
-    ov = Image.new("RGBA", (W, H), (0,0,0,0))
-    od = ImageDraw.Draw(ov)
-    od.rectangle([(60, oy-14), (W-60, H-20)], fill=(0,0,0,165))
-    img = Image.alpha_composite(img.convert("RGBA"), ov).convert("RGB")
-    draw = ImageDraw.Draw(img)
-    y = oy
-    for line in lines:
-        bb = draw.textbbox((0,0), line, font=f)
-        x = (W-(bb[2]-bb[0]))//2
-        draw.text((x+2,y+2), line, fill=(0,0,0), font=f)
-        draw.text((x,y), line, fill=color, font=f)
-        y += lh
+    return img
     return img
 
 
