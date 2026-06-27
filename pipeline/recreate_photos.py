@@ -241,97 +241,135 @@ def make_image2(text=""):
 
 
 # ─── IMAGE 3: Workers at gas compression / metering station ───────────────────
+# Closely based on the reference photo: yellow foreground pipes with blue T-valve,
+# 3 workers in blue coveralls + orange hard hats, white facility + barbed wire fence,
+# gravel ground, red fire extinguisher bottom right, overcast sky.
 def make_image3(text=""):
+    import random
+    rng = random.Random(42)
     img = Image.new("RGB", (W, H))
     draw = ImageDraw.Draw(img)
 
-    # Overcast sky
-    for y in range(H // 2):
-        t = y / (H // 2)
-        c = int(165 + 25 * (1 - t))
-        draw.line([(0, y), (W, y)], fill=(c, c + 2, c + 5))
+    # ── Sky: flat overcast light grey ──
+    for y in range(380):
+        t = y / 380
+        c = int(190 - 20 * t)
+        draw.line([(0, y), (W, y)], fill=(c, c + 1, c + 3))
 
-    # Background industrial facility (hazy)
-    for bx, bw, bh, bc in [
-        (0, 300, 250, (130, 125, 118)),
-        (280, 180, 320, (118, 112, 106)),
-        (440, 250, 200, (135, 128, 122)),
-        (680, 200, 280, (120, 115, 108)),
-        (1500, 260, 290, (128, 122, 116)),
-        (1740, 200, 240, (115, 110, 104)),
-    ]:
-        draw.rectangle([(bx, H // 2 - bh), (bx + bw, H // 2 + 20)], fill=bc)
+    # ── White industrial building (fills upper background) ──
+    draw.rectangle([(0, 120), (W, 400)], fill=(215, 212, 208))
+    # building panels / horizontal lines
+    for py in range(140, 400, 55):
+        draw.line([(0, py), (W, py)], fill=(195, 192, 188), width=2)
+    # window strip near top
+    for wx in range(80, W - 80, 140):
+        draw.rectangle([(wx, 140), (wx + 90, 195)], fill=(160, 175, 190))
+        draw.rectangle([(wx + 3, 143), (wx + 87, 192)], fill=(170, 185, 200))
 
-    # Security fence (top background)
-    for fx in range(0, W, 40):
-        draw.rectangle([(fx, H // 2 - 80), (fx + 3, H // 2 + 10)], fill=(100, 95, 90))
-    draw.rectangle([(0, H // 2 - 82), (W, H // 2 - 76)], fill=(110, 105, 100))
-    # Barbed wire suggestion
-    for fx in range(0, W, 60):
-        draw.ellipse([(fx, H // 2 - 95), (fx + 20, H // 2 - 75)], outline=(150, 145, 140), width=2)
+    # ── Security fence with barbed wire across full width ──
+    fence_y = 390
+    for fx in range(0, W, 38):
+        draw.rectangle([(fx, fence_y), (fx + 3, fence_y + 90)], fill=(90, 85, 80))
+    draw.rectangle([(0, fence_y), (W, fence_y + 5)], fill=(100, 95, 90))
+    draw.rectangle([(0, fence_y + 45), (W, fence_y + 50)], fill=(100, 95, 90))
+    # chain-link mesh suggestion
+    for fx in range(0, W, 18):
+        draw.line([(fx, fence_y), (fx + 9, fence_y + 45)], fill=(110, 105, 100), width=1)
+        draw.line([(fx + 9, fence_y), (fx, fence_y + 45)], fill=(110, 105, 100), width=1)
+    # barbed wire coils on top
+    for fx in range(0, W, 28):
+        draw.ellipse([(fx, fence_y - 22), (fx + 22, fence_y + 2)],
+                     outline=(160, 155, 145), width=2)
 
-    # Gravel ground
-    for y in range(H // 2, H):
-        t = (y - H // 2) / (H // 2)
-        shade = int(140 - 30 * t)
-        draw.line([(0, y), (W, y)], fill=(shade, shade - 5, shade - 8))
-    # gravel texture dots
-    import random
-    rng = random.Random(42)
-    for _ in range(3000):
+    # ── Gravel ground ──
+    for y in range(480, H):
+        t = (y - 480) / (H - 480)
+        shade = int(155 - 35 * t)
+        draw.line([(0, y), (W, y)], fill=(shade, shade - 6, shade - 10))
+    for _ in range(5000):
         gx = rng.randint(0, W)
-        gy = rng.randint(H // 2 + 20, H - 10)
-        gs = rng.randint(2, 7)
-        gc = rng.randint(100, 160)
-        draw.ellipse([(gx, gy), (gx + gs, gy + gs)], fill=(gc, gc - 5, gc - 10))
+        gy = rng.randint(490, H - 5)
+        gs = rng.randint(2, 6)
+        gc = rng.randint(110, 165)
+        draw.ellipse([(gx, gy), (gx + gs, gy + gs)],
+                     fill=(gc, gc - 6, gc - 10))
 
-    # MAIN YELLOW PIPES (horizontal, large, foreground)
-    pipe_y_positions = [520, 620, 720]
-    pipe_r = 55
-    for py in pipe_y_positions:
-        # pipe body
-        for i in range(-pipe_r, pipe_r):
-            t = i / pipe_r
-            shade = int(210 - 70 * abs(t))
-            shade_g = int(170 - 60 * abs(t))
-            draw.line([(0, py + i), (1600, py + i)], fill=(shade, shade_g, 0), width=1)
-        # highlight
-        for i in range(-pipe_r // 3, 0):
-            draw.line([(0, py + i - 10), (1600, py + i - 10)],
-                      fill=(240, 220, 60), width=2)
-        # pipe end flange (right)
-        draw.rectangle([(1580, py - pipe_r - 10), (1620, py + pipe_r + 10)], fill=(160, 130, 0))
+    # ── LARGE YELLOW PIPES — dominant foreground, running left→right ──
+    # Main pipe (biggest, lowest in frame)
+    def draw_pipe_h(y_centre, radius, x0=0, x1=W, yellow=(215, 170, 0)):
+        for i in range(-radius, radius):
+            t = i / radius
+            shade_r = int(yellow[0] * (1 - 0.55 * t * t))
+            shade_g = int(yellow[1] * (1 - 0.55 * t * t))
+            highlight = 40 if -0.45 < t < -0.05 else 0
+            draw.line([(x0, y_centre + i), (x1, y_centre + i)],
+                      fill=(min(255, shade_r + highlight),
+                            min(255, shade_g + highlight), 0))
 
-    # BLUE VALVE / FITTING (centre)
-    valve_x, valve_y = 780, 570
-    draw.rectangle([(valve_x - 60, valve_y - 40), (valve_x + 60, valve_y + 40)], fill=(30, 80, 180))
-    draw.rectangle([(valve_x - 80, valve_y - 20), (valve_x + 80, valve_y + 20)], fill=(20, 60, 160))
-    # valve wheel handle
-    draw.ellipse([(valve_x - 35, valve_y - 90), (valve_x + 35, valve_y - 20)], outline=(200, 200, 200), width=6)
-    draw.line([(valve_x, valve_y - 90), (valve_x, valve_y - 20)], fill=(200, 200, 200), width=5)
-    draw.line([(valve_x - 35, valve_y - 55), (valve_x + 35, valve_y - 55)], fill=(200, 200, 200), width=5)
+    # Three pipes stacked / branching
+    draw_pipe_h(y_centre=680, radius=70)   # main large pipe foreground
+    draw_pipe_h(y_centre=560, radius=52)   # upper secondary pipe
+    draw_pipe_h(y_centre=790, radius=42, x0=400)  # lower branch
 
-    # More valve fittings along pipe
-    for vx in [300, 1100]:
-        draw.rectangle([(vx - 45, 580), (vx + 45, 660)], fill=(25, 70, 170))
-        draw.ellipse([(vx - 28, 530), (vx + 28, 590)], outline=(190, 190, 190), width=5)
-        draw.line([(vx, 530), (vx, 590)], fill=(190, 190, 190), width=4)
+    # ── BLUE T-JUNCTION VALVE — prominent left-of-centre ──
+    vx, vy = 480, 620
+    # vertical riser pipe (yellow)
+    draw_pipe_h(y_centre=vy, radius=48, x0=vx - 52, x1=vx + 52)
+    # Blue valve body
+    draw.rectangle([(vx - 65, vy - 55), (vx + 65, vy + 55)], fill=(25, 70, 185))
+    draw.rectangle([(vx - 55, vy - 45), (vx + 55, vy + 45)], fill=(35, 85, 200))
+    # flange bolts
+    for angle in range(0, 360, 45):
+        import math
+        bx = vx + int(72 * math.cos(math.radians(angle)))
+        by = vy + int(72 * math.sin(math.radians(angle)))
+        draw.ellipse([(bx - 7, by - 7), (bx + 7, by + 7)], fill=(140, 130, 120))
+    # valve stem going up
+    draw.rectangle([(vx - 12, vy - 130), (vx + 12, vy - 55)], fill=(160, 150, 140))
+    # handwheel
+    wheel_y = vy - 145
+    draw.ellipse([(vx - 45, wheel_y - 45), (vx + 45, wheel_y + 45)],
+                 outline=(180, 170, 160), width=7)
+    draw.line([(vx, wheel_y - 45), (vx, wheel_y + 45)], fill=(180, 170, 160), width=6)
+    draw.line([(vx - 45, wheel_y), (vx + 45, wheel_y)], fill=(180, 170, 160), width=6)
 
-    # Red fire extinguisher (right side)
-    draw.rectangle([(1700, 600), (1740, 750)], fill=(180, 25, 25))
-    draw.rectangle([(1712, 585), (1728, 605)], fill=(150, 20, 20))
-    draw.ellipse([(1705, 580), (1735, 600)], fill=(140, 18, 18))
-    draw.rectangle([(1695, 748), (1745, 760)], fill=(100, 90, 80))
+    # ── More valves / fittings along the main pipe ──
+    for fvx in [900, 1350]:
+        draw.rectangle([(fvx - 42, 640), (fvx + 42, 720)], fill=(30, 75, 190))
+        draw.rectangle([(fvx - 35, 635), (fvx + 35, 725)], fill=(40, 88, 205))
+        draw.rectangle([(fvx - 10, 580), (fvx + 10, 640)], fill=(155, 145, 135))
+        draw.ellipse([(fvx - 30, 545), (fvx + 30, 585)],
+                     outline=(170, 160, 150), width=6)
+        draw.line([(fvx - 30, 565), (fvx + 30, 565)], fill=(170, 160, 150), width=5)
 
-    # Platform / walkway
-    draw.rectangle([(600, 760), (1650, 780)], fill=(100, 90, 80))
-    for sx in range(600, 1650, 50):
-        draw.line([(sx, 760), (sx, 780)], fill=(80, 72, 64), width=2)
+    # Pipe end flange on far right
+    draw.rectangle([(W - 30, 610), (W, 750)], fill=(170, 135, 0))
+    draw.rectangle([(W - 50, 605), (W - 28, 755)], fill=(150, 120, 0))
 
-    # Workers (3 of them)
-    _draw_worker_station(draw, 650, 620, jacket=(30, 80, 180), hat=(220, 100, 20))
-    _draw_worker_station(draw, 850, 610, jacket=(30, 80, 180), hat=(220, 100, 20))
-    _draw_worker_station(draw, 1050, 625, jacket=(30, 80, 180), hat=(220, 100, 20))
+    # ── Metal platform / raised walkway (right side) ──
+    draw.rectangle([(1100, 620), (1900, 645)], fill=(110, 100, 90))
+    for sx in range(1100, 1900, 30):
+        draw.line([(sx, 620), (sx, 645)], fill=(85, 76, 68), width=2)
+    # platform supports
+    for px in [1150, 1400, 1650, 1850]:
+        draw.rectangle([(px, 645), (px + 12, 800)], fill=(90, 82, 74))
+
+    # ── Red FIRE EXTINGUISHER — bottom right ──
+    ex, ey = 1800, 700
+    draw.rectangle([(ex, ey), (ex + 42, ey + 170)], fill=(185, 28, 28))
+    draw.rectangle([(ex + 10, ey - 22), (ex + 32, ey + 5)], fill=(155, 22, 22))
+    draw.ellipse([(ex + 5, ey - 35), (ex + 37, ey - 10)], fill=(145, 20, 20))
+    # hose
+    draw.arc([(ex - 20, ey + 20), (ex + 20, ey + 80)], 0, 270, fill=(30, 25, 20), width=5)
+    draw.rectangle([(ex - 20, ey + 165), (ex + 62, ey + 178)], fill=(80, 72, 65))
+
+    # ── WORKERS — blue coveralls, orange hard hats ──
+    # Worker 1: left-centre, leaning over pipe (crouching/bending)
+    _draw_worker_station(draw, 700, 540, jacket=(38, 82, 175), hat=(215, 95, 15), crouching=True)
+    # Worker 2: centre, standing upright working on valve
+    _draw_worker_station(draw, 1000, 510, jacket=(38, 82, 175), hat=(215, 95, 15))
+    # Worker 3: right, standing on platform
+    _draw_worker_station(draw, 1280, 500, jacket=(38, 82, 175), hat=(215, 95, 15))
 
     img = _vignette(img)
     if text:
@@ -339,25 +377,30 @@ def make_image3(text=""):
     return img
 
 
-def _draw_worker_station(draw, x, y, jacket=(50, 100, 200), hat=(220, 100, 20)):
-    # hard hat
-    draw.ellipse([(x - 18, y - 90), (x + 18, y - 52)], fill=hat)
-    draw.rectangle([(x - 22, y - 68), (x + 22, y - 56)], fill=hat)
-    # head
-    draw.ellipse([(x - 14, y - 52), (x + 14, y - 24)], fill=(205, 170, 135))
-    # jacket
-    draw.rectangle([(x - 25, y - 24), (x + 25, y + 55)], fill=jacket)
-    # reflective stripe
-    draw.rectangle([(x - 25, y + 8), (x + 25, y + 16)], fill=(220, 220, 60))
-    # arms
-    draw.rectangle([(x + 22, y - 18), (x + 42, y + 28)], fill=jacket)
-    draw.rectangle([(x - 42, y - 18), (x - 22, y + 28)], fill=jacket)
-    # trousers
-    draw.rectangle([(x - 22, y + 53), (x - 4, y + 120)], fill=(45, 50, 60))
-    draw.rectangle([(x + 4, y + 53), (x + 22, y + 120)], fill=(45, 50, 60))
-    # boots
-    draw.rectangle([(x - 24, y + 118), (x - 2, y + 136)], fill=(25, 20, 18))
-    draw.rectangle([(x + 2, y + 118), (x + 24, y + 136)], fill=(25, 20, 18))
+def _draw_worker_station(draw, x, y, jacket=(50, 100, 200), hat=(220, 100, 20), crouching=False):
+    if crouching:
+        # bent-over pose: torso angled forward
+        draw.ellipse([(x - 18, y - 52), (x + 18, y - 14)], fill=hat)
+        draw.rectangle([(x - 22, y - 30), (x + 22, y - 18)], fill=hat)
+        draw.ellipse([(x - 14, y - 14), (x + 14, y + 14)], fill=(205, 170, 135))
+        draw.polygon([(x - 28, y + 12), (x + 28, y + 12), (x + 50, y + 75), (x - 8, y + 75)], fill=jacket)
+        draw.rectangle([(x - 28, y + 73), (x - 8, y + 130)], fill=(45, 50, 60))
+        draw.rectangle([(x + 14, y + 73), (x + 50, y + 130)], fill=(45, 50, 60))
+        draw.rectangle([(x - 30, y + 128), (x - 6, y + 146)], fill=(25, 20, 18))
+        draw.rectangle([(x + 12, y + 128), (x + 52, y + 146)], fill=(25, 20, 18))
+        draw.rectangle([(x + 26, y + 12), (x + 58, y + 55)], fill=jacket)
+    else:
+        draw.ellipse([(x - 18, y - 90), (x + 18, y - 52)], fill=hat)
+        draw.rectangle([(x - 22, y - 68), (x + 22, y - 56)], fill=hat)
+        draw.ellipse([(x - 14, y - 52), (x + 14, y - 24)], fill=(205, 170, 135))
+        draw.rectangle([(x - 25, y - 24), (x + 25, y + 55)], fill=jacket)
+        draw.rectangle([(x - 25, y + 8), (x + 25, y + 16)], fill=(220, 220, 60))
+        draw.rectangle([(x + 22, y - 18), (x + 42, y + 28)], fill=jacket)
+        draw.rectangle([(x - 42, y - 18), (x - 22, y + 28)], fill=jacket)
+        draw.rectangle([(x - 22, y + 53), (x - 4, y + 120)], fill=(45, 50, 60))
+        draw.rectangle([(x + 4, y + 53), (x + 22, y + 120)], fill=(45, 50, 60))
+        draw.rectangle([(x - 24, y + 118), (x - 2, y + 136)], fill=(25, 20, 18))
+        draw.rectangle([(x + 2, y + 118), (x + 24, y + 136)], fill=(25, 20, 18))
 
 
 def _vignette(img):
