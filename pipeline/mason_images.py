@@ -183,42 +183,135 @@ def rocket(draw, cx, cy, scale=1.0, flame=True):
 
 # ── SCENE BUILDERS ──────────────────────────────────────────────────────────
 
-def s00(text):  # cozy bedroom
+def _cartoon_bedroom(eyes_closed=True, final_scene=False):
+    """Shared cartoon-style bedroom matching the reference illustration."""
     img = Image.new("RGB",(W,H))
     d = ImageDraw.Draw(img)
-    grad(d, (25,18,45), (55,35,70))
-    # floor
-    d.rectangle([(0,780),(W,H)], fill=(100,70,50))
-    for x in range(0,W,80):
-        d.line([(x,780),(x,H)], fill=(85,58,40), width=2)
-    # walls
-    d.rectangle([(0,0),(W,780)], fill=(55,35,65))
-    grad(d, (45,28,58),(65,42,75),0,780)
-    # window with starry sky
-    wx,wy,ww,wh = 800,80,320,320
-    d.rectangle([(wx,wy),(wx+ww,wy+wh)], fill=(8,10,35))
-    stars(d,120,(100,255),(1,3))
-    moon(d,wx+220,wy+80,40)
-    d.rectangle([(wx-10,wy-10),(wx+ww+10,wy+wh+10)], outline=(180,150,100),width=10)
-    d.line([(wx+ww//2,wy),(wx+ww//2,wy+wh)], fill=(180,150,100),width=6)
-    d.line([(wx,wy+wh//2),(wx+ww,wy+wh//2)], fill=(180,150,100),width=6)
-    # bed
-    d.rectangle([(500,700),(1420,900)], fill=(180,100,80))
-    d.rectangle([(500,650),(1420,710)], fill=(140,70,60))
-    d.rectangle([(520,700),(1400,780)], fill=(220,180,140))
-    # rocket ship duvet pattern
-    for rx in range(560,1380,120):
-        d.polygon([(rx,720),(rx-12,755),(rx+12,755)], fill=(200,60,60))
-        d.rectangle([(rx-5,755),(rx+5,775)], fill=(180,50,50))
-    # pillow
-    d.ellipse([(580,660),(820,720)], fill=(240,230,215))
-    # Mason in pyjamas, eyes closing
-    mason_boy(d, 700, 780, scale=0.9, eyes_closed=True)
-    # bedside lamp glow
-    d.ellipse([(1350,500),(1480,700)], fill=(255,230,150))
-    d.ellipse([(1370,520),(1460,680)], fill=(255,245,180))
-    d.rectangle([(1400,698),(1430,780)], fill=(120,90,60))
-    img = vignette(img,100)
+
+    # — background wall: warm pink-purple gradient —
+    grad(d,(210,185,215),(185,155,195),0,H)
+
+    # — floor: warm tan wood —
+    d.rectangle([(0,800),(W,H)], fill=(185,148,110))
+    for x in range(0,W,60):
+        d.line([(x,800),(x,H)], fill=(170,135,98), width=1)
+
+    # — large window right side —
+    wx,wy,ww,wh = 1050, 60, 700, 680
+    # curtains
+    d.polygon([(wx-60,wy-20),(wx-60,wy+wh+20),(wx+80,wy+wh),(wx+60,wy-20)], fill=(230,175,185))
+    d.polygon([(wx+ww+60,wy-20),(wx+ww+60,wy+wh+20),(wx+ww-80,wy+wh),(wx+ww-60,wy-20)], fill=(230,175,185))
+    # night sky pane
+    d.rectangle([(wx,wy),(wx+ww,wy+wh)], fill=(12,18,55))
+    # stars in window
+    for sx,sy in [(wx+80,wy+60),(wx+200,wy+120),(wx+380,wy+45),(wx+520,wy+180),(wx+150,wy+280),(wx+440,wy+320),(wx+300,wy+200),(wx+600,wy+90),(wx+500,wy+400),(wx+650,wy+300)]:
+        sz=rng.randint(2,5)
+        d.ellipse([(sx-sz,sy-sz),(sx+sz,sy+sz)],fill=(255,255,200))
+    # big star outlines
+    for sx,sy in [(wx+100,wy+100),(wx+320,wy+80),(wx+550,wy+150)]:
+        d.polygon([(sx,sy-14),(sx+4,sy-4),(sx+14,sy),(sx+4,sy+4),(sx,sy+14),(sx-4,sy+4),(sx-14,sy),(sx-4,sy-4)],fill=(255,240,150))
+    # crescent moon
+    d.ellipse([(wx+ww-180,wy+30),(wx+ww-30,wy+180)],fill=(245,225,120))
+    d.ellipse([(wx+ww-145,wy+20),(wx+ww-10,wy+160)],fill=(12,18,55))
+    # window frame
+    d.rectangle([(wx-8,wy-8),(wx+ww+8,wy+wh+8)],outline=(140,105,70),width=14)
+    d.line([(wx+ww//2,wy),(wx+ww//2,wy+wh)],fill=(140,105,70),width=8)
+    d.line([(wx,wy+wh//2),(wx+ww,wy+wh//2)],fill=(140,105,70),width=8)
+    # small dinosaur toy on windowsill right
+    dx,dy = wx+ww-80, wy+wh-120
+    d.ellipse([(dx-28,dy-28),(dx+28,dy+28)],fill=(80,185,100))
+    d.ellipse([(dx+10,dy-45),(dx+45,dy-15)],fill=(80,185,100))
+    d.ellipse([(dx+40,dy-52),(dx+60,dy-32)],fill=(255,255,255))
+    d.ellipse([(dx+45,dy-48),(dx+55,dy-38)],fill=(30,30,30))
+    d.polygon([(dx+22,dy-55),(dx+28,dy-65),(dx+34,dy-55)],fill=(220,60,60))
+
+    # — rocket posters left wall —
+    poster_positions = [(100,80),(100,340),(100,590)]
+    poster_colors = [(255,240,220),(220,240,255),(240,255,220)]
+    for (px,py),pc in zip(poster_positions, poster_colors):
+        pw,ph = 200,200
+        d.rectangle([(px,py),(px+pw,py+ph)],fill=pc,outline=(200,190,180),width=3)
+        # sky background in poster
+        d.rectangle([(px+10,py+10),(px+pw-10,py+ph-10)],fill=(180,210,240))
+        # ground strip
+        d.rectangle([(px+10,py+ph-50),(px+pw-10,py+ph-10)],fill=(140,195,140))
+        # little rocket in poster
+        rcx,rcy = px+pw//2, py+ph//2-10
+        d.polygon([(rcx,rcy-55),(rcx-18,rcy-25),(rcx+18,rcy-25)],fill=(220,60,60))
+        d.rectangle([(rcx-18,rcy-25),(rcx+18,rcy+30)],fill=(240,240,255))
+        d.ellipse([(rcx-10,rcy-10),(rcx+10,rcy+10)],fill=(120,190,230))
+        d.polygon([(rcx-18,rcy+10),(rcx-32,rcy+30),(rcx-18,rcy+30)],fill=(200,50,50))
+        d.polygon([(rcx+18,rcy+10),(rcx+32,rcy+30),(rcx+18,rcy+30)],fill=(200,50,50))
+        # flame
+        d.polygon([(rcx-8,rcy+30),(rcx+8,rcy+30),(rcx,rcy+50)],fill=(255,180,30))
+        # cloud puffs
+        for cx2 in [px+30,px+70,px+140,px+170]:
+            d.ellipse([(cx2-16,py+ph-75),(cx2+16,py+ph-45)],fill=(255,255,255))
+
+    # — nightstand left of bed —
+    nsx,nsy = 380, 620
+    d.rectangle([(nsx,nsy),(nsx+200,nsy+200)],fill=(165,118,80))
+    d.rectangle([(nsx+10,nsy+90),(nsx+190,nsy+100)],fill=(140,98,62))
+    d.rectangle([(nsx+80,nsy+95),(nsx+120,nsy+200)],fill=(140,98,62))
+    # books on nightstand
+    for bi,(bx,bc) in enumerate([(nsx+10,( 200,120,80)),(nsx+50,(80,140,200)),(nsx+90,(180,80,80))]):
+        d.rectangle([(bx,nsy-30+bi*4),(bx+36,nsy)],fill=bc,outline=(50,30,20),width=1)
+    # lamp on nightstand
+    lx,ly = nsx+100, nsy-160
+    d.polygon([(lx-70,ly+20),(lx+70,ly+20),(lx+45,ly+160),(lx-45,ly+160)],fill=(245,235,215))
+    # lamp glow
+    glow = Image.new("RGBA",(W,H),(0,0,0,0))
+    gd = ImageDraw.Draw(glow)
+    for r,a in [(240,18),(180,30),(120,50),(70,80)]:
+        gd.ellipse([(lx-r,ly-r//2),(lx+r,ly+r)],fill=(255,220,140,a))
+    img = Image.alpha_composite(img.convert("RGBA"),glow).convert("RGB")
+    d = ImageDraw.Draw(img)
+    d.ellipse([(lx-30,ly),(lx+30,ly+40)],fill=(255,245,200))
+    d.rectangle([(lx-6,ly+155),(lx+6,ly+230)],fill=(140,105,65))
+    d.ellipse([(lx-22,ly+228),(lx+22,ly+248)],fill=(165,118,80))
+
+    # — bed: wooden headboard —
+    hbx,hby = 380, 560
+    d.rectangle([(hbx,hby),(hbx+1160,hby+80)],fill=(155,105,68))
+    d.rectangle([(hbx+20,hby+10),(hbx+1140,hby+70)],fill=(170,120,80))
+    # bed frame
+    d.rectangle([(hbx,hby+80),(hbx+1160,H-80)],fill=(155,105,68))
+    # white fluffy blanket border
+    d.rectangle([(hbx+20,hby+90),(hbx+1140,hby+170)],fill=(245,245,245))
+    for bx2 in range(hbx+40,hbx+1120,60):
+        d.ellipse([(bx2-22,hby+92),(bx2+22,hby+168)],fill=(255,255,255))
+    # colourful star-pattern duvet
+    duvet_y = hby+170
+    grad(d,(160,195,225),(180,215,245),duvet_y,H-80)
+    # stars on duvet in multiple colours
+    star_cols = [(255,220,80),(255,120,160),(120,200,255),(200,255,150),(255,180,100)]
+    star_pos = []
+    r2 = random.Random(42)
+    for _ in range(35):
+        star_pos.append((r2.randint(hbx+40,hbx+1100),r2.randint(duvet_y+20,H-120),r2.choice(star_cols),r2.randint(14,26)))
+    for sx2,sy2,sc,ss in star_pos:
+        d.polygon([(sx2,sy2-ss),(sx2+ss//3,sy2-ss//3),(sx2+ss,sy2),(sx2+ss//3,sy2+ss//3),(sx2,sy2+ss),(sx2-ss//3,sy2+ss//3),(sx2-ss,sy2),(sx2-ss//3,sy2-ss//3)],fill=sc)
+    # fluffy blanket right side drape
+    for fy in range(duvet_y,H-60,50):
+        d.ellipse([(hbx+1060,fy-15),(hbx+1150,fy+45)],fill=(250,250,250))
+
+    # — pillow —
+    d.ellipse([(hbx+50,hby+75),(hbx+350,hby+155)],fill=(248,242,230))
+    d.ellipse([(hbx+60,hby+80),(hbx+340,hby+148)],fill=(255,250,240))
+
+    # — Mason sleeping —
+    mason_boy(d, hbx+220, hby+230, scale=1.0, eyes_closed=True)
+
+    # — books stack bottom right —
+    for bi2,(bbc) in enumerate([(200,100,80),(80,130,190),(160,80,120)]):
+        d.rectangle([(W-200,H-80-bi2*28),(W-60,H-55-bi2*28)],fill=bbc,outline=(40,20,10),width=1)
+
+    img = vignette(img, 60)
+    return img
+
+
+def s00(text):  # cozy bedroom
+    img = _cartoon_bedroom(eyes_closed=True, final_scene=False)
     return text_overlay(img,text,(255,240,210))
 
 def s01(text):  # boy at window
@@ -762,47 +855,13 @@ def s19(text):  # dream fading back to bedroom
     return text_overlay(img,text,(220,215,255))
 
 def s20(text):  # Mason sleeping, stars smiling
-    img=Image.new("RGB",(W,H))
-    d=ImageDraw.Draw(img)
-    grad(d,(18,12,38),(40,25,55))
-    # warm bedroom glow
-    d.rectangle([(0,750),(W,H)],fill=(90,55,38))
-    for x in range(0,W,80):
-        d.line([(x,750),(x,H)],fill=(75,45,30),width=2)
-    # walls
-    grad(d,(38,25,52),(52,35,65),0,750)
-    # window stars — smiling night
-    wx2,wy2,ww2,wh2=750,60,420,380
-    d.rectangle([(wx2,wy2),(wx2+ww2,wy2+wh2)],fill=(6,8,28))
-    stars(d,200,(150,255),(2,4))
-    # smiley moon
-    moon(d,wx2+300,wy2+100,65)
-    d2=ImageDraw.Draw(img)
-    d2.arc([(wx2+270,wy2+100),(wx2+330,wy2+140)],0,180,fill=(180,150,60),width=4)
-    d2.ellipse([(wx2+283,wy2+85),(wx2+294,wy2+96)],fill=(180,150,60))
-    d2.ellipse([(wx2+306,wy2+85),(wx2+317,wy2+96)],fill=(180,150,60))
-    d2.rectangle([(wx2-10,wy2-10),(wx2+ww2+10,wy2+wh2+10)],outline=(160,130,90),width=12)
-    # bed
-    d2.rectangle([(420,720),(1500,920)],fill=(170,90,72))
-    d2.rectangle([(420,670),(1500,730)],fill=(130,62,54))
-    d2.rectangle([(440,720),(1480,800)],fill=(215,172,135))
-    for rx in range(480,1460,120):
-        d2.polygon([(rx,738),(rx-10,768),(rx+10,768)],fill=(195,52,52))
-        d2.rectangle([(rx-4,768),(rx+4,788)],fill=(175,42,42))
-    # pillow
-    d2.ellipse([(480,672),(740,732)],fill=(238,228,212))
-    # Mason sleeping, huge smile
-    mason_boy(d2,640,800,scale=0.88,eyes_closed=True)
-    # bedside lamp
-    d2.ellipse([(1340,490),(1470,690)],fill=(255,225,145))
-    d2.ellipse([(1358,508),(1452,672)],fill=(255,242,175))
-    d2.rectangle([(1388,688),(1418,770)],fill=(115,85,55))
-    # tiny floating stars/sparkles around Mason
-    for _,(sx,sy) in enumerate([(580,650),(720,620),(640,590),(560,710),(740,680)]):
-        d2.ellipse([(sx-5,sy-5),(sx+5,sy+5)],fill=(255,230,120))
-        d2.line([(sx-9,sy),(sx+9,sy)],fill=(255,230,120),width=2)
-        d2.line([(sx,sy-9),(sx,sy+9)],fill=(255,230,120),width=2)
-    img=vignette(img,90)
+    img = _cartoon_bedroom(eyes_closed=True, final_scene=True)
+    d = ImageDraw.Draw(img)
+    # extra sparkles drifting over sleeping Mason — dream magic fading in
+    for sx,sy in [(620,590),(760,560),(680,530),(590,660),(770,640),(700,510)]:
+        d.ellipse([(sx-6,sy-6),(sx+6,sy+6)],fill=(255,230,120))
+        d.line([(sx-11,sy),(sx+11,sy)],fill=(255,230,120),width=2)
+        d.line([(sx,sy-11),(sx,sy+11)],fill=(255,230,120),width=2)
     return text_overlay(img,text,(255,248,215))
 
 
